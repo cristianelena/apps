@@ -1,0 +1,1395 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Dibuja de Memoria - Party Game</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts & Font Awesome Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#f0f9ff',
+              100: '#e0f2fe',
+              500: '#0284c7',
+              600: '#0369a1',
+              700: '#075985',
+              accent: '#f43f5e',
+              yellow: '#eab308',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    * {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    input, textarea {
+      user-select: text;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0,0,0,0.1);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.3);
+      border-radius: 9999px;
+    }
+    /* El canvas no debe permitir scroll por gestos táctiles */
+    #drawing-canvas {
+      touch-action: none;
+      cursor: crosshair;
+      display: block;
+    }
+    .gradient-header {
+      background: linear-gradient(135deg, #0ea5e9 0%, #6366f1 50%, #ec4899 100%);
+    }
+  </style>
+</head>
+<body class="h-full bg-slate-950 text-slate-100 font-sans antialiased flex flex-col justify-between overflow-x-hidden selection:bg-rose-500 selection:text-white">
+
+  <!-- HEADER -->
+  <header class="w-full border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-30 px-4 py-3 sm:px-8">
+    <div class="max-w-6xl mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl gradient-header flex items-center justify-center shadow-lg shadow-indigo-500/30">
+          <i class="fa-solid fa-paintbrush text-white text-lg"></i>
+        </div>
+        <div>
+          <h1 class="font-extrabold text-lg sm:text-xl tracking-tight bg-gradient-to-r from-sky-400 via-indigo-300 to-rose-400 bg-clip-text text-transparent">
+            Dibuja de Memoria
+          </h1>
+          <p class="text-xs text-slate-400 hidden sm:block">Party game multijugador por turnos</p>
+        </div>
+      </div>
+
+      <!-- Estado & Utilidades -->
+      <div class="flex items-center gap-3">
+        <div id="game-status-badge" class="hidden sm:inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-800 border border-slate-700 text-xs font-semibold text-slate-300">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="badge-text">Lobby</span>
+        </div>
+        <button id="btn-toggle-sound" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition border border-slate-700" title="Activar/Silenciar sonido">
+          <i class="fa-solid fa-volume-high text-sm"></i>
+        </button>
+        <button id="btn-reset-game" class="px-3 py-1.5 rounded-xl bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 text-xs font-semibold border border-rose-800/40 transition flex items-center gap-1.5">
+          <i class="fa-solid fa-arrow-rotate-left"></i>
+          <span>Reiniciar</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENEDOR PRINCIPAL -->
+  <main class="flex-1 max-w-5xl w-full mx-auto p-4 sm:p-6 flex flex-col justify-center items-center relative">
+
+    <!-- ========================================== -->
+    <!-- 1. PANTALLA: LOBBY / CONFIGURACIÓN        -->
+    <!-- ========================================== -->
+    <section id="screen-lobby" class="w-full max-w-3xl flex flex-col gap-6">
+      
+      <div class="text-center space-y-2 py-2">
+        <span class="px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/20">
+          ¡A dibujar de pura memoria!
+        </span>
+        <h2 class="text-3xl sm:text-4xl font-black text-white">Configura la partida</h2>
+        <p class="text-slate-400 text-sm max-w-lg mx-auto">
+          Cada participante propone personajes en secreto. Saldrán al azar y todos los dibujarán por turno en este dispositivo.
+        </p>
+      </div>
+
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-6">
+        
+        <div class="flex flex-col sm:flex-row gap-4 justify-between sm:items-center border-b border-slate-800 pb-4">
+          <div>
+            <h3 class="font-bold text-lg text-white flex items-center gap-2">
+              <i class="fa-solid fa-users text-sky-400"></i> Participantes
+            </h3>
+            <p class="text-xs text-slate-400">Mínimo 2 jugadores (Recomendado 3)</p>
+          </div>
+          
+          <div class="flex items-center gap-3">
+            <!-- Selector de tiempo -->
+            <div class="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+              <i class="fa-regular fa-clock text-amber-400 text-xs"></i>
+              <label for="select-round-time" class="text-xs font-medium text-slate-300">Tiempo:</label>
+              <select id="select-round-time" class="bg-transparent text-xs font-bold text-sky-400 focus:outline-none cursor-pointer">
+                <option value="30">30 seg</option>
+                <option value="45" selected>45 seg</option>
+                <option value="60">60 seg</option>
+                <option value="75">75 seg</option>
+                <option value="90">90 seg</option>
+              </select>
+            </div>
+
+            <!-- Cantidad de propuestas por jugador -->
+            <div class="flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+              <i class="fa-solid fa-lightbulb text-yellow-400 text-xs"></i>
+              <label for="select-items-count" class="text-xs font-medium text-slate-300">Personajes:</label>
+              <select id="select-items-count" class="bg-transparent text-xs font-bold text-sky-400 focus:outline-none cursor-pointer">
+                <option value="1">1 c/u</option>
+                <option value="2">2 c/u</option>
+                <option value="3" selected>3 c/u</option>
+                <option value="4">4 c/u</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lista de Jugadores -->
+        <div id="players-list-container" class="space-y-4"></div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+          <button id="btn-add-player" class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold border border-slate-700 transition flex items-center gap-2">
+            <i class="fa-solid fa-user-plus text-sky-400"></i>
+            <span>Añadir jugador</span>
+          </button>
+
+          <span class="text-xs font-semibold text-slate-400">
+            Total personajes en la partida: <strong class="text-sky-400 font-bold" id="total-pool-count">9</strong>
+          </span>
+        </div>
+      </div>
+
+      <!-- Botón Comenzar -->
+      <div class="flex flex-col items-center gap-2">
+        <button id="btn-start-game" class="w-full sm:w-auto px-10 py-4 rounded-2xl bg-gradient-to-r from-sky-500 via-indigo-600 to-rose-500 hover:from-sky-400 hover:to-rose-400 text-white font-extrabold text-lg shadow-xl shadow-indigo-600/30 transform hover:-translate-y-0.5 active:translate-y-0 transition flex items-center justify-center gap-3">
+          <i class="fa-solid fa-play"></i>
+          <span>Comenzar Partida</span>
+        </button>
+        <p id="lobby-error" class="text-rose-400 text-xs font-semibold h-4 text-center"></p>
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 2. PANTALLA: ANUNCIO DEL PERSONAJE         -->
+    <!-- ========================================== -->
+    <section id="screen-round-intro" class="hidden w-full max-w-xl text-center space-y-6">
+      <div class="bg-slate-900 border border-slate-800 rounded-3xl p-8 sm:p-10 shadow-2xl space-y-6">
+        
+        <div class="flex justify-between items-center text-xs font-bold text-slate-400 uppercase tracking-wider">
+          <span id="intro-round-indicator">Ronda 1 de 9</span>
+          <span class="flex items-center gap-1.5 text-amber-400">
+            <i class="fa-solid fa-brain"></i> Solo de memoria
+          </span>
+        </div>
+
+        <div class="py-4 space-y-3">
+          <p class="text-slate-400 text-sm font-medium">Todos deberán dibujar a:</p>
+          <h2 id="intro-target-word" class="text-4xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-pink-400 to-sky-300 py-1">
+            Bob Esponja
+          </h2>
+          <p class="text-xs text-slate-400 pt-1">
+            Cada jugador dibujará por turno sin mirar lo que hizo el anterior.
+          </p>
+        </div>
+
+        <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 flex items-center justify-center gap-3">
+          <div class="w-10 h-10 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-black text-lg border border-indigo-500/30">
+            1
+          </div>
+          <div class="text-left">
+            <span class="text-xs text-slate-400">Comienza dibujando:</span>
+            <h4 id="intro-first-player" class="text-base font-bold text-white">Jugador 1</h4>
+          </div>
+        </div>
+
+        <button id="btn-ready-to-draw" class="w-full py-3.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-base shadow-lg shadow-sky-500/20 transition flex items-center justify-center gap-2">
+          <span>¡Estoy listo, iniciar mi turno!</span>
+          <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 3. PANTALLA: ÁREA DE DIBUJO Y LIENZO       -->
+    <!-- ========================================== -->
+    <section id="screen-draw" class="hidden w-full max-w-4xl flex flex-col gap-3">
+      
+      <!-- Top info bar -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-md">
+        
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 rounded-lg bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold text-sm border border-sky-500/30">
+            <i class="fa-solid fa-palette"></i>
+          </div>
+          <div>
+            <span class="text-[10px] text-slate-400 uppercase tracking-wider font-semibold block leading-tight">Turno actual</span>
+            <span id="current-painter-name" class="font-bold text-sm sm:text-base text-white">Jugador 1</span>
+          </div>
+        </div>
+
+        <div class="px-3.5 py-1 rounded-xl bg-slate-950 border border-slate-800 flex items-center gap-2">
+          <span class="text-xs text-slate-400">Objetivo:</span>
+          <span id="draw-target-word" class="font-black text-sm sm:text-base text-amber-400">Personaje</span>
+        </div>
+
+        <!-- Temporizador y Botón de Terminar Antes -->
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-stopwatch text-slate-400 text-sm"></i>
+            <span id="timer-text" class="font-black text-xl text-white font-mono">45s</span>
+          </div>
+          
+          <!-- ESTE BOTÓN SOLO ESTÁ DISPONIBLE EN DIBUJO ACTIVO -->
+          <button id="btn-finish-drawing-early" class="text-xs bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold px-3.5 py-1.5 rounded-lg transition shadow flex items-center gap-1.5">
+            <i class="fa-solid fa-check"></i>
+            <span>¡Terminé!</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Barra de progreso del tiempo -->
+      <div class="w-full h-1.5 bg-slate-900 rounded-full overflow-hidden">
+        <div id="timer-progress-bar" class="h-full bg-sky-500 transition-all duration-300 w-full"></div>
+      </div>
+
+      <!-- Layout: Toolbar + Canvas -->
+      <div class="flex flex-col md:flex-row gap-3 relative">
+        
+        <!-- Toolbar Simple y Robusta: Pincel, Borrador, Colores, Grosores, Undo, Clear -->
+        <div class="flex md:flex-col items-center justify-between gap-2 p-2.5 bg-slate-900 border border-slate-800 rounded-2xl shadow-md overflow-x-auto">
+          
+          <!-- Paleta de colores predefinidos -->
+          <div class="flex md:flex-col gap-1.5 items-center">
+            <button class="color-btn w-7 h-7 rounded-full bg-black border-2 border-white shadow transition transform active:scale-95" data-color="#000000" title="Negro"></button>
+            <button class="color-btn w-7 h-7 rounded-full bg-slate-400 border-2 border-transparent shadow transition transform active:scale-95" data-color="#94a3b8" title="Gris"></button>
+            <button class="color-btn w-7 h-7 rounded-full bg-red-500 border-2 border-transparent shadow transition transform active:scale-95" data-color="#ef4444" title="Rojo"></button>
+            <button class="color-btn w-7 h-7 rounded-full bg-amber-500 border-2 border-transparent shadow transition transform active:scale-95" data-color="#f59e0b" title="Naranja"></button>
+            <button class="color-btn w-7 h-7 rounded-full bg-yellow-300 border-2 border-transparent shadow transition transform active:scale-95" data-color="#fde047" title="Amarillo"></button>
+            <button class="color-btn w-7 h-7 rounded-full bg-emerald-500 border-2 border-transparent shadow transition transform active:scale-95" data-color="#10b981" title="Verde"></button>
+            <button class="color-btn w-7 h-7 rounded-full bg-sky-500 border-2 border-transparent shadow transition transform active:scale-95" data-color="#0ea5e9" title="Azul"></button>
+            <button class="color-btn w-7 h-7 rounded-full bg-purple-500 border-2 border-transparent shadow transition transform active:scale-95" data-color="#a855f7" title="Violeta"></button>
+            <button class="color-btn w-7 h-7 rounded-full bg-pink-500 border-2 border-transparent shadow transition transform active:scale-95" data-color="#ec4899" title="Rosa"></button>
+            <button class="color-btn w-7 h-7 rounded-full bg-amber-900 border-2 border-transparent shadow transition transform active:scale-95" data-color="#78350f" title="Marrón"></button>
+            
+            <!-- Selector nativo libre -->
+            <label class="w-7 h-7 rounded-full relative cursor-pointer overflow-hidden border-2 border-slate-700 hover:border-sky-400 flex items-center justify-center bg-gradient-to-tr from-rose-500 via-amber-400 to-sky-400" title="Color personalizado">
+              <input type="color" id="native-color-picker" class="opacity-0 absolute inset-0 cursor-pointer">
+              <i class="fa-solid fa-eye-dropper text-[10px] text-white drop-shadow"></i>
+            </label>
+          </div>
+
+          <div class="h-6 w-px md:h-px md:w-6 bg-slate-800"></div>
+
+          <!-- Modos: Pincel vs Goma -->
+          <div class="flex md:flex-col gap-1.5">
+            <button id="tool-brush" class="w-8 h-8 rounded-xl bg-sky-500 text-white flex items-center justify-center transition shadow" title="Pincel">
+              <i class="fa-solid fa-paintbrush text-xs"></i>
+            </button>
+            <button id="tool-eraser" class="w-8 h-8 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition" title="Goma de borrar">
+              <i class="fa-solid fa-eraser text-xs"></i>
+            </button>
+          </div>
+
+          <div class="h-6 w-px md:h-px md:w-6 bg-slate-800"></div>
+
+          <!-- Grosores de trazo -->
+          <div class="flex md:flex-col gap-1.5 items-center">
+            <button class="size-btn w-8 h-8 rounded-xl bg-slate-800 text-slate-300 flex items-center justify-center" data-size="3" title="Fino (3px)">
+              <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
+            </button>
+            <button class="size-btn w-8 h-8 rounded-xl bg-sky-500 text-white flex items-center justify-center shadow" data-size="7" title="Medio (7px)">
+              <span class="w-3 h-3 rounded-full bg-current"></span>
+            </button>
+            <button class="size-btn w-8 h-8 rounded-xl bg-slate-800 text-slate-300 flex items-center justify-center" data-size="16" title="Grueso (16px)">
+              <span class="w-4 h-4 rounded-full bg-current"></span>
+            </button>
+          </div>
+
+          <div class="h-6 w-px md:h-px md:w-6 bg-slate-800"></div>
+
+          <!-- Deshacer & Limpiar -->
+          <div class="flex md:flex-col gap-1.5">
+            <button id="btn-undo" class="w-8 h-8 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition" title="Deshacer trazo">
+              <i class="fa-solid fa-rotate-left text-xs"></i>
+            </button>
+            <button id="btn-clear-canvas" class="w-8 h-8 rounded-xl bg-rose-950/40 text-rose-300 hover:bg-rose-900/60 border border-rose-800/40 flex items-center justify-center transition" title="Limpiar lienzo">
+              <i class="fa-regular fa-trash-can text-xs"></i>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Canvas Container -->
+        <div id="canvas-container" class="flex-1 bg-white rounded-2xl shadow-2xl relative overflow-hidden aspect-[4/3] sm:aspect-[16/10] max-h-[62vh] border-4 border-slate-800">
+          <canvas id="drawing-canvas" class="w-full h-full bg-white"></canvas>
+
+          <!-- PANTALLA DE PASE DE DISPOSITIVO: 100% OPACA, SIN TRANSPARENCIAS, SIN BLUR -->
+          <div id="pass-device-modal" class="hidden absolute inset-0 bg-slate-950 flex flex-col items-center justify-center p-6 text-center z-40">
+            <div class="w-16 h-16 rounded-2xl bg-sky-500/20 text-sky-400 flex items-center justify-center text-3xl mb-3 border border-sky-500/30">
+              <i class="fa-solid fa-mobile-screen-button"></i>
+            </div>
+            <span class="text-xs font-bold uppercase tracking-wider text-amber-400 mb-1">Turno terminado</span>
+            <h3 class="text-2xl sm:text-3xl font-black text-white mb-2">¡Pasa el dispositivo!</h3>
+            <p class="text-slate-300 text-sm mb-6 max-w-sm">
+              Entrega la pantalla a: <br>
+              <strong id="next-player-pass-name" class="text-sky-400 text-2xl font-extrabold block mt-1">Jugador 2</strong>
+            </p>
+            
+            <!-- Botón de confirmar inicio de turno con guarda anti-doble-click -->
+            <button id="btn-next-player-ready" class="px-8 py-4 rounded-xl bg-sky-500 hover:bg-sky-400 active:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 font-black text-base transition shadow-xl shadow-sky-500/20 flex items-center gap-2">
+              <span>Soy <span id="btn-next-player-label">Jugador 2</span>, ¡comenzar mi turno!</span>
+              <i class="fa-solid fa-play text-xs"></i>
+            </button>
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 4. PANTALLA: VOTACIÓN COMUNITARIA          -->
+    <!-- ========================================== -->
+    <section id="screen-voting" class="hidden w-full max-w-5xl flex flex-col gap-6">
+      
+      <div class="text-center space-y-1">
+        <span class="text-xs font-bold text-sky-400 uppercase tracking-widest">Fase de Votación</span>
+        <h2 class="text-2xl sm:text-3xl font-black text-white">¿Cuál se parece más a <span id="voting-target-word" class="text-amber-400">Personaje</span>?</h2>
+        <p class="text-slate-400 text-xs sm:text-sm">
+          Todos los jugadores deben votar por el dibujo más fiel hecho de memoria (sin autovotarse).
+        </p>
+      </div>
+
+      <!-- Galería de dibujos -->
+      <div id="voting-gallery" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5"></div>
+
+      <div class="flex justify-center pt-2">
+        <button id="btn-next-round" class="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-sky-500 hover:from-emerald-400 hover:to-sky-400 text-white font-extrabold text-base shadow-xl shadow-emerald-500/20 transition flex items-center gap-2">
+          <span>Confirmar Votos y Continuar</span>
+          <i class="fa-solid fa-forward-step"></i>
+        </button>
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- 5. PANTALLA: RESULTADOS FINALES Y PODIO    -->
+    <!-- ========================================== -->
+    <section id="screen-results" class="hidden w-full max-w-3xl flex flex-col gap-8 text-center">
+      
+      <div class="space-y-2">
+        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-extrabold uppercase tracking-wider">
+          <i class="fa-solid fa-trophy"></i> Partida Completada
+        </div>
+        <h2 class="text-3xl sm:text-5xl font-black text-white">¡Podio de Dibujantes!</h2>
+        <p class="text-slate-400 text-sm">Se dibujaron todos los personajes propuestos.</p>
+      </div>
+
+      <!-- Podio Top 3 -->
+      <div id="podium-container" class="flex justify-center items-end gap-3 sm:gap-6 pt-6 pb-2"></div>
+
+      <!-- Tabla completa de Posiciones -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl text-left">
+        <h4 class="font-bold text-sm text-slate-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <i class="fa-solid fa-ranking-star text-sky-400"></i> Tabla General
+        </h4>
+        <div id="scoreboard-list" class="divide-y divide-slate-800"></div>
+      </div>
+
+      <!-- Galería Museo de la Memoria -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 text-left space-y-4">
+        <div class="flex justify-between items-center">
+          <h4 class="font-bold text-sm text-slate-300 uppercase tracking-wider flex items-center gap-2">
+            <i class="fa-regular fa-images text-rose-400"></i> Galería de la Memoria
+          </h4>
+          <span class="text-xs text-slate-400">Todas las creaciones</span>
+        </div>
+        <div id="summary-museum" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 max-h-72 overflow-y-auto pr-1"></div>
+      </div>
+
+      <!-- Acciones de cierre -->
+      <div class="flex flex-wrap items-center justify-center gap-4">
+        <button id="btn-play-again-same" class="px-6 py-3.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-black text-sm transition flex items-center gap-2 shadow-lg shadow-sky-500/20">
+          <i class="fa-solid fa-rotate-right"></i>
+          <span>Revancha (Mismos Jugadores)</span>
+        </button>
+        <button id="btn-new-lobby" class="px-6 py-3.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-sm border border-slate-700 transition flex items-center gap-2">
+          <i class="fa-solid fa-sliders"></i>
+          <span>Nuevo Juego / Editar Nombres</span>
+        </button>
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- MODAL / MENSAJE DE ADVERTENCIA ACCESIBLE (Sin alert()) -->
+  <div id="custom-modal" class="hidden fixed inset-0 z-50 bg-slate-950/80 flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 text-center shadow-2xl space-y-4">
+      <div class="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-400 mx-auto flex items-center justify-center text-xl">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+      </div>
+      <h3 id="modal-title" class="text-lg font-bold text-white">Atención</h3>
+      <p id="modal-message" class="text-slate-300 text-sm">Mensaje</p>
+      <button id="modal-btn-confirm" class="w-full py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold text-sm transition">
+        Entendido
+      </button>
+    </div>
+  </div>
+
+  <footer class="border-t border-slate-900 py-3 px-4 text-center text-xs text-slate-600">
+    Dibuja de Memoria &copy; Minimalist Party Game
+  </footer>
+
+  <!-- LÓGICA JAVASCRIPT ROBUSTA -->
+  <script>
+    /**
+     * MOTOR DIBUJA DE MEMORIA
+     */
+
+    // --- 1. SINTETIZADOR DE AUDIO (Web Audio API) ---
+    class SoundEngine {
+      constructor() {
+        this.enabled = true;
+        this.ctx = null;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) this.ctx = new AudioContext();
+        }
+      }
+      play(type) {
+        if (!this.enabled) return;
+        try {
+          this.init();
+          if (!this.ctx) return;
+          if (this.ctx.state === 'suspended') this.ctx.resume();
+
+          const now = this.ctx.currentTime;
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+
+          if (type === 'click') {
+            osc.frequency.setValueAtTime(650, now);
+            osc.frequency.exponentialRampToValueAtTime(850, now + 0.04);
+            gain.gain.setValueAtTime(0.08, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+            osc.start(now);
+            osc.stop(now + 0.04);
+          } else if (type === 'tick') {
+            osc.frequency.setValueAtTime(950, now);
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+            osc.start(now);
+            osc.stop(now + 0.03);
+          } else if (type === 'buzzer') {
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, now);
+            osc.frequency.linearRampToValueAtTime(130, now + 0.28);
+            gain.gain.setValueAtTime(0.14, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+            osc.start(now);
+            osc.stop(now + 0.28);
+          } else if (type === 'vote') {
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, now);
+            osc.frequency.exponentialRampToValueAtTime(880, now + 0.12);
+            gain.gain.setValueAtTime(0.12, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+            osc.start(now);
+            osc.stop(now + 0.12);
+          } else if (type === 'victory') {
+            [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+              const o = this.ctx.createOscillator();
+              const g = this.ctx.createGain();
+              o.connect(g);
+              g.connect(this.ctx.destination);
+              o.frequency.setValueAtTime(freq, now + i * 0.08);
+              g.gain.setValueAtTime(0.09, now + i * 0.08);
+              g.gain.exponentialRampToValueAtTime(0.001, now + (i + 1) * 0.14);
+              o.start(now + i * 0.08);
+              o.stop(now + (i + 1) * 0.14);
+            });
+          }
+        } catch (e) {
+          console.warn('Audio no disponible', e);
+        }
+      }
+    }
+    const sound = new SoundEngine();
+
+    // --- 2. ESTADO GLOBAL ---
+    const STATE = {
+      players: [
+        { id: 'p1', name: 'Jugador 1', items: ['Bob Esponja', 'Pikachu', 'Homero Simpson'], score: 0 },
+        { id: 'p2', name: 'Jugador 2', items: ['Mickey Mouse', 'Shrek', 'Mario Bros'], score: 0 },
+        { id: 'p3', name: 'Jugador 3', items: ['Darth Vader', 'Spider-Man', 'Goku'], score: 0 }
+      ],
+      roundTime: 45,
+      itemsPerPlayer: 3,
+      deck: [],
+      currentRoundIndex: 0,
+      currentPrompt: null,
+      currentPainterTurnIndex: 0,
+      isTurnActive: false, // Control estricto de si se puede dibujar o usar 'Terminé'
+      roundDrawings: {},
+      roundVotes: {},
+      allRoundsHistory: [],
+      timerInterval: null,
+      timeLeft: 45
+    };
+
+    // --- 3. REFERENCIAS DOM ---
+    const screens = {
+      lobby: document.getElementById('screen-lobby'),
+      intro: document.getElementById('screen-round-intro'),
+      draw: document.getElementById('screen-draw'),
+      voting: document.getElementById('screen-voting'),
+      results: document.getElementById('screen-results')
+    };
+
+    const statusBadge = document.getElementById('badge-text');
+    const playersListContainer = document.getElementById('players-list-container');
+    const totalPoolCountElem = document.getElementById('total-pool-count');
+    const selectRoundTime = document.getElementById('select-round-time');
+    const selectItemsCount = document.getElementById('select-items-count');
+    const lobbyError = document.getElementById('lobby-error');
+
+    // Botones clave
+    const btnFinishEarly = document.getElementById('btn-finish-drawing-early');
+    const passDeviceModal = document.getElementById('pass-device-modal');
+    const btnNextPlayerReady = document.getElementById('btn-next-player-ready');
+
+    // Canvas
+    const canvas = document.getElementById('drawing-canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const canvasContainer = document.getElementById('canvas-container');
+
+    // Modal accesible
+    const customModal = document.getElementById('custom-modal');
+    const modalTitle = document.getElementById('modal-title');
+    const modalMessage = document.getElementById('modal-message');
+    const modalBtnConfirm = document.getElementById('modal-btn-confirm');
+
+    function showModal(title, msg) {
+      modalTitle.textContent = title;
+      modalMessage.textContent = msg;
+      customModal.classList.remove('hidden');
+    }
+    modalBtnConfirm.onclick = () => customModal.classList.add('hidden');
+
+    function setScreen(name) {
+      Object.keys(screens).forEach(key => screens[key].classList.add('hidden'));
+      screens[name].classList.remove('hidden');
+      const titles = {
+        lobby: 'Lobby',
+        intro: 'Preparando ronda',
+        draw: 'Dibujando de memoria',
+        voting: 'Votación',
+        results: 'Resultados y podio'
+      };
+      statusBadge.textContent = titles[name] || 'Juego';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // --- 4. LOBBY Y CONFIGURACIÓN ---
+    function renderLobbyPlayers() {
+      playersListContainer.innerHTML = '';
+      const neededItems = parseInt(selectItemsCount.value, 10);
+
+      STATE.players.forEach((player, pIdx) => {
+        while (player.items.length < neededItems) player.items.push('');
+        if (player.items.length > neededItems) player.items = player.items.slice(0, neededItems);
+
+        const card = document.createElement('div');
+        card.className = 'bg-slate-950 border border-slate-800 rounded-xl p-4 space-y-3';
+        
+        let inputsHtml = '';
+        for (let i = 0; i < neededItems; i++) {
+          inputsHtml += `
+            <input 
+              type="text" 
+              placeholder="Personaje #${i + 1}" 
+              value="${player.items[i] || ''}"
+              data-player-index="${pIdx}"
+              data-item-index="${i}"
+              class="player-item-input w-full bg-slate-900 border border-slate-800 focus:border-sky-400 focus:ring-1 focus:ring-sky-400 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 outline-none transition"
+            >
+          `;
+        }
+
+        card.innerHTML = `
+          <div class="flex items-center justify-between gap-3">
+            <div class="flex items-center gap-2 flex-1">
+              <span class="w-6 h-6 rounded-md bg-sky-500/20 text-sky-400 flex items-center justify-center font-bold text-xs border border-sky-500/30">
+                ${pIdx + 1}
+              </span>
+              <input 
+                type="text" 
+                value="${player.name}"
+                data-player-index="${pIdx}" 
+                class="player-name-input bg-transparent font-bold text-white text-sm focus:outline-none focus:border-b border-sky-400 px-1 py-0.5"
+                placeholder="Nombre del jugador"
+              />
+            </div>
+            ${STATE.players.length > 2 ? `
+              <button data-remove-player="${pIdx}" class="text-slate-500 hover:text-rose-400 text-xs p-1 transition" title="Eliminar participante">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            ` : ''}
+          </div>
+
+          <div class="space-y-1.5">
+            <label class="text-[11px] font-semibold text-slate-400 flex items-center gap-1">
+              <i class="fa-solid fa-mask text-amber-400"></i> Personajes secretos propuestos:
+            </label>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              ${inputsHtml}
+            </div>
+          </div>
+        `;
+        playersListContainer.appendChild(card);
+      });
+
+      updateLobbyCount();
+    }
+
+    function updateLobbyCount() {
+      const itemsCount = parseInt(selectItemsCount.value, 10);
+      totalPoolCountElem.textContent = STATE.players.length * itemsCount;
+    }
+
+    playersListContainer.addEventListener('input', (e) => {
+      const pIdx = e.target.getAttribute('data-player-index');
+      if (pIdx === null) return;
+
+      if (e.target.classList.contains('player-name-input')) {
+        STATE.players[pIdx].name = e.target.value.trim() || `Jugador ${parseInt(pIdx) + 1}`;
+      } else if (e.target.classList.contains('player-item-input')) {
+        const itemIdx = e.target.getAttribute('data-item-index');
+        STATE.players[pIdx].items[itemIdx] = e.target.value;
+      }
+    });
+
+    playersListContainer.addEventListener('click', (e) => {
+      const btnRemove = e.target.closest('[data-remove-player]');
+      if (btnRemove) {
+        sound.play('click');
+        const idx = parseInt(btnRemove.getAttribute('data-remove-player'), 10);
+        if (STATE.players.length > 2) {
+          STATE.players.splice(idx, 1);
+          renderLobbyPlayers();
+        }
+      }
+    });
+
+    document.getElementById('btn-add-player').addEventListener('click', () => {
+      sound.play('click');
+      if (STATE.players.length >= 8) {
+        showModal('Límite alcanzado', 'El límite para una partida fluida es de 8 jugadores.');
+        return;
+      }
+      const newNum = STATE.players.length + 1;
+      STATE.players.push({
+        id: 'p' + Date.now(),
+        name: `Jugador ${newNum}`,
+        items: ['Batman', 'Pikachu', 'Mario Bros'],
+        score: 0
+      });
+      renderLobbyPlayers();
+    });
+
+    selectItemsCount.addEventListener('change', () => {
+      STATE.itemsPerPlayer = parseInt(selectItemsCount.value, 10);
+      renderLobbyPlayers();
+    });
+
+    selectRoundTime.addEventListener('change', () => {
+      STATE.roundTime = parseInt(selectRoundTime.value, 10);
+    });
+
+    document.getElementById('btn-start-game').addEventListener('click', () => {
+      sound.play('click');
+      lobbyError.textContent = '';
+
+      const pool = [];
+      for (const p of STATE.players) {
+        if (!p.name.trim()) {
+          lobbyError.textContent = 'Todos los jugadores deben tener un nombre.';
+          return;
+        }
+        for (let i = 0; i < STATE.itemsPerPlayer; i++) {
+          const item = (p.items[i] || '').trim();
+          if (!item) {
+            lobbyError.textContent = `A ${p.name} le falta completar personajes.`;
+            return;
+          }
+          pool.push({ name: item, proposedBy: p.name });
+        }
+      }
+
+      // Barajar personajes
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+
+      STATE.players.forEach(p => p.score = 0);
+      STATE.deck = pool;
+      STATE.currentRoundIndex = 0;
+      STATE.allRoundsHistory = [];
+
+      startRound();
+    });
+
+    // --- 5. FLUJO DE RONDAS ---
+    function startRound() {
+      if (STATE.currentRoundIndex >= STATE.deck.length) {
+        finishGame();
+        return;
+      }
+
+      STATE.currentPrompt = STATE.deck[STATE.currentRoundIndex];
+      STATE.currentPainterTurnIndex = 0;
+      STATE.roundDrawings = {};
+      STATE.roundVotes = {};
+      STATE.isTurnActive = false;
+
+      document.getElementById('intro-round-indicator').textContent = 
+        `Ronda ${STATE.currentRoundIndex + 1} de ${STATE.deck.length}`;
+      document.getElementById('intro-target-word').textContent = STATE.currentPrompt.name;
+      document.getElementById('intro-first-player').textContent = STATE.players[0].name;
+
+      setScreen('intro');
+      sound.play('tick');
+    }
+
+    document.getElementById('btn-ready-to-draw').addEventListener('click', () => {
+      sound.play('click');
+      startDrawingTurn();
+    });
+
+    // Inicia formalmente el turno de dibujo para el jugador actual
+    function startDrawingTurn() {
+      const currentPlayer = STATE.players[STATE.currentPainterTurnIndex];
+      document.getElementById('current-painter-name').textContent = currentPlayer.name;
+      document.getElementById('draw-target-word').textContent = STATE.currentPrompt.name;
+
+      // Ocultar modal de traspaso y resetear su botón
+      passDeviceModal.classList.add('hidden');
+      btnNextPlayerReady.disabled = false;
+
+      // Habilitar y mostrar botón "Terminé"
+      btnFinishEarly.disabled = false;
+      btnFinishEarly.classList.remove('hidden', 'opacity-50', 'pointer-events-none');
+
+      setScreen('draw');
+      
+      // Limpiar y dimensionar canvas a blanco puro
+      resizeCanvas(false);
+      clearCanvas();
+
+      STATE.isTurnActive = true;
+      startTimer();
+    }
+
+    // --- 6. CANVAS ENGINE SEGURO Y LIMPIO (PINCEL Y BORRADOR) ---
+    let isDrawing = false;
+    let currentColor = '#000000';
+    let currentSize = 7;
+    let currentTool = 'brush'; // 'brush' | 'eraser'
+    let strokeHistory = [];
+
+    function initCanvas() {
+      resizeCanvas(false);
+      window.addEventListener('resize', () => {
+        if (!screens.draw.classList.contains('hidden') && STATE.isTurnActive) {
+          resizeCanvas(true);
+        }
+      });
+
+      // Mouse Events
+      canvas.addEventListener('mousedown', (e) => {
+        if (!STATE.isTurnActive) return;
+        startStroke(e.clientX, e.clientY);
+      });
+
+      canvas.addEventListener('mousemove', (e) => {
+        if (!STATE.isTurnActive || !isDrawing) return;
+        drawStroke(e.clientX, e.clientY);
+      });
+
+      canvas.addEventListener('mouseup', () => endStroke());
+      canvas.addEventListener('mouseleave', () => endStroke());
+
+      // Touch Events (con event.preventDefault para evitar scroll o lag)
+      canvas.addEventListener('touchstart', (e) => {
+        if (!STATE.isTurnActive) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        startStroke(touch.clientX, touch.clientY);
+      }, { passive: false });
+
+      canvas.addEventListener('touchmove', (e) => {
+        if (!STATE.isTurnActive) return;
+        e.preventDefault();
+        if (!isDrawing) return;
+        const touch = e.touches[0];
+        drawStroke(touch.clientX, touch.clientY);
+      }, { passive: false });
+
+      canvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        endStroke();
+      }, { passive: false });
+
+      // Selector de Colores
+      document.querySelectorAll('.color-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          sound.play('click');
+          currentTool = 'brush';
+          currentColor = btn.getAttribute('data-color');
+          updateToolUI();
+        });
+      });
+
+      document.getElementById('native-color-picker').addEventListener('input', (e) => {
+        currentTool = 'brush';
+        currentColor = e.target.value;
+        updateToolUI();
+      });
+
+      // Grosores
+      document.querySelectorAll('.size-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          sound.play('click');
+          currentSize = parseInt(btn.getAttribute('data-size'), 10);
+          document.querySelectorAll('.size-btn').forEach(b => {
+            b.classList.remove('bg-sky-500', 'text-white', 'shadow');
+            b.classList.add('bg-slate-800', 'text-slate-300');
+          });
+          btn.classList.remove('bg-slate-800', 'text-slate-300');
+          btn.classList.add('bg-sky-500', 'text-white', 'shadow');
+        });
+      });
+
+      // Pincel vs Goma
+      const brushBtn = document.getElementById('tool-brush');
+      const eraserBtn = document.getElementById('tool-eraser');
+
+      brushBtn.addEventListener('click', () => {
+        sound.play('click');
+        currentTool = 'brush';
+        updateToolUI();
+      });
+
+      eraserBtn.addEventListener('click', () => {
+        sound.play('click');
+        currentTool = 'eraser';
+        updateToolUI();
+      });
+
+      // Deshacer & Limpiar
+      document.getElementById('btn-undo').addEventListener('click', () => {
+        if (!STATE.isTurnActive) return;
+        sound.play('click');
+        undoStroke();
+      });
+
+      document.getElementById('btn-clear-canvas').addEventListener('click', () => {
+        if (!STATE.isTurnActive) return;
+        sound.play('click');
+        clearCanvas();
+      });
+
+      // Botón "¡Terminé!" en cabecera
+      btnFinishEarly.addEventListener('click', () => {
+        if (!STATE.isTurnActive) return; // Guarda crítica
+        sound.play('click');
+        finishCurrentTurn();
+      });
+
+      // Botón de pase de pantalla
+      btnNextPlayerReady.addEventListener('click', () => {
+        if (btnNextPlayerReady.disabled) return;
+        sound.play('click');
+        // Bloquear temporalmente para evitar cualquier doble pulsación
+        btnNextPlayerReady.disabled = true;
+        startDrawingTurn();
+      });
+    }
+
+    function updateToolUI() {
+      const brushBtn = document.getElementById('tool-brush');
+      const eraserBtn = document.getElementById('tool-eraser');
+
+      if (currentTool === 'brush') {
+        brushBtn.className = 'w-8 h-8 rounded-xl bg-sky-500 text-white flex items-center justify-center transition shadow';
+        eraserBtn.className = 'w-8 h-8 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition';
+      } else {
+        eraserBtn.className = 'w-8 h-8 rounded-xl bg-sky-500 text-white flex items-center justify-center transition shadow';
+        brushBtn.className = 'w-8 h-8 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 flex items-center justify-center transition';
+      }
+
+      document.querySelectorAll('.color-btn').forEach(btn => {
+        if (currentTool === 'brush' && btn.getAttribute('data-color').toLowerCase() === currentColor.toLowerCase()) {
+          btn.classList.add('border-white', 'scale-110');
+          btn.classList.remove('border-transparent');
+        } else {
+          btn.classList.remove('border-white', 'scale-110');
+          btn.classList.add('border-transparent');
+        }
+      });
+    }
+
+    function resizeCanvas(preserve = false) {
+      const rect = canvasContainer.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+
+      let temp = null;
+      if (preserve && canvas.width > 0 && canvas.height > 0) {
+        temp = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      }
+
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      ctx.scale(dpr, dpr);
+
+      // Fondo blanco sólido
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, rect.width, rect.height);
+
+      if (temp && preserve) {
+        ctx.putImageData(temp, 0, 0);
+      } else {
+        strokeHistory = [];
+        saveHistory();
+      }
+    }
+
+    function getCoords(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+      };
+    }
+
+    function startStroke(clientX, clientY) {
+      isDrawing = true;
+      const { x, y } = getCoords(clientX, clientY);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = (currentTool === 'eraser') ? '#ffffff' : currentColor;
+      ctx.lineWidth = (currentTool === 'eraser') ? currentSize * 2.5 : currentSize;
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+
+    function drawStroke(clientX, clientY) {
+      if (!isDrawing) return;
+      const { x, y } = getCoords(clientX, clientY);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+
+    function endStroke() {
+      if (isDrawing) {
+        isDrawing = false;
+        ctx.closePath();
+        saveHistory();
+      }
+    }
+
+    function saveHistory() {
+      if (strokeHistory.length >= 25) strokeHistory.shift();
+      strokeHistory.push(canvas.toDataURL());
+    }
+
+    function undoStroke() {
+      if (strokeHistory.length > 1) {
+        strokeHistory.pop();
+        const prev = strokeHistory[strokeHistory.length - 1];
+        const img = new Image();
+        img.onload = () => {
+          const rect = canvasContainer.getBoundingClientRect();
+          ctx.clearRect(0, 0, rect.width, rect.height);
+          ctx.drawImage(img, 0, 0, rect.width, rect.height);
+        };
+        img.src = prev;
+      } else {
+        clearCanvas();
+      }
+    }
+
+    function clearCanvas() {
+      const rect = canvasContainer.getBoundingClientRect();
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, rect.width, rect.height);
+      strokeHistory = [];
+      saveHistory();
+    }
+
+    // --- 7. TEMPORIZADOR Y CONTROL DE TURNOS ---
+    function startTimer() {
+      clearInterval(STATE.timerInterval);
+      STATE.timeLeft = STATE.roundTime;
+      updateTimerUI();
+
+      STATE.timerInterval = setInterval(() => {
+        if (!STATE.isTurnActive) {
+          clearInterval(STATE.timerInterval);
+          return;
+        }
+
+        STATE.timeLeft--;
+        updateTimerUI();
+
+        if (STATE.timeLeft <= 5 && STATE.timeLeft > 0) {
+          sound.play('tick');
+        }
+
+        if (STATE.timeLeft <= 0) {
+          clearInterval(STATE.timerInterval);
+          sound.play('buzzer');
+          finishCurrentTurn();
+        }
+      }, 1000);
+    }
+
+    function updateTimerUI() {
+      const timerText = document.getElementById('timer-text');
+      const progressBar = document.getElementById('timer-progress-bar');
+      
+      timerText.textContent = `${STATE.timeLeft}s`;
+      const pct = (STATE.timeLeft / STATE.roundTime) * 100;
+      progressBar.style.width = `${pct}%`;
+
+      if (STATE.timeLeft <= 10) {
+        progressBar.classList.remove('bg-sky-500');
+        progressBar.classList.add('bg-rose-500');
+        timerText.classList.add('text-rose-400');
+      } else {
+        progressBar.classList.remove('bg-rose-500');
+        progressBar.classList.add('bg-sky-500');
+        timerText.classList.remove('text-rose-400');
+      }
+    }
+
+    function finishCurrentTurn() {
+      // 1. INMEDIATAMENTE DESACTIVAR TURNO Y DESHABILITAR BOTÓN "TERMINÉ"
+      STATE.isTurnActive = false;
+      clearInterval(STATE.timerInterval);
+      isDrawing = false;
+
+      btnFinishEarly.disabled = true;
+      btnFinishEarly.classList.add('hidden', 'opacity-50', 'pointer-events-none');
+
+      // 2. Guardar el dibujo del jugador actual
+      const currentPlayer = STATE.players[STATE.currentPainterTurnIndex];
+      STATE.roundDrawings[currentPlayer.id] = canvas.toDataURL('image/png');
+
+      // 3. LIMPIEZA TOTAL DEL CANVAS (Evita cualquier silueta previa)
+      clearCanvas();
+
+      // 4. Incrementar índice de jugador
+      STATE.currentPainterTurnIndex++;
+
+      // 5. Verificar si aún faltan jugadores en esta ronda
+      if (STATE.currentPainterTurnIndex < STATE.players.length) {
+        const nextPlayer = STATE.players[STATE.currentPainterTurnIndex];
+        document.getElementById('next-player-pass-name').textContent = nextPlayer.name;
+        document.getElementById('btn-next-player-label').textContent = nextPlayer.name;
+
+        // Mostrar pantalla de traspaso 100% OPACA
+        passDeviceModal.classList.remove('hidden');
+
+        // SEGURIDAD ANTI-DOBLE-CLICK: Deshabilitar el botón por 700ms
+        // Así, si el jugador anterior hizo doble click en 'Terminé', no se salta al siguiente
+        btnNextPlayerReady.disabled = true;
+        setTimeout(() => {
+          btnNextPlayerReady.disabled = false;
+        }, 700);
+
+      } else {
+        // TODOS los jugadores terminaron de dibujar este personaje: avanzar a la votación
+        goToVotingPhase();
+      }
+    }
+
+    // --- 8. FASE DE VOTACIÓN ---
+    function goToVotingPhase() {
+      setScreen('voting');
+      document.getElementById('voting-target-word').textContent = STATE.currentPrompt.name;
+
+      const gallery = document.getElementById('voting-gallery');
+      gallery.innerHTML = '';
+      STATE.roundVotes = {};
+
+      STATE.players.forEach(player => {
+        const imgData = STATE.roundDrawings[player.id];
+        const card = document.createElement('div');
+        card.className = 'bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col gap-3 shadow-lg';
+        
+        card.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-sm text-white flex items-center gap-2">
+              <i class="fa-solid fa-user-pen text-sky-400"></i> ${player.name}
+            </span>
+            <span id="vote-count-${player.id}" class="text-xs font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+              0 votos
+            </span>
+          </div>
+
+          <div class="bg-white rounded-xl overflow-hidden aspect-[4/3] flex items-center justify-center border border-slate-800 shadow-inner">
+            <img src="${imgData}" alt="Dibujo de ${player.name}" class="w-full h-full object-contain pointer-events-none" />
+          </div>
+
+          <div class="pt-1">
+            <p class="text-[11px] text-slate-400 mb-1 font-semibold">¿Quién vota este dibujo?</p>
+            <div class="flex flex-wrap gap-1.5" id="voters-for-${player.id}">
+              ${STATE.players.map(voter => {
+                const isSelf = voter.id === player.id;
+                return `
+                  <button 
+                    type="button" 
+                    ${isSelf ? 'disabled title="No puedes votarte a ti mismo"' : ''}
+                    data-voter-id="${voter.id}" 
+                    data-target-id="${player.id}"
+                    class="voter-pill-btn text-xs px-2.5 py-1 rounded-lg border font-semibold transition ${
+                      isSelf 
+                        ? 'opacity-25 border-slate-800 bg-slate-950 cursor-not-allowed text-slate-600' 
+                        : 'border-slate-700 bg-slate-800 hover:bg-sky-500/20 hover:border-sky-400 text-slate-300'
+                    }"
+                  >
+                    ${voter.name}
+                  </button>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+        gallery.appendChild(card);
+      });
+
+      // Manejar clics de votos
+      gallery.querySelectorAll('.voter-pill-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const voterId = btn.getAttribute('data-voter-id');
+          const targetId = btn.getAttribute('data-target-id');
+          if (!voterId || !targetId || voterId === targetId) return;
+
+          sound.play('vote');
+          if (STATE.roundVotes[voterId] === targetId) {
+            delete STATE.roundVotes[voterId];
+          } else {
+            STATE.roundVotes[voterId] = targetId;
+          }
+          updateVotingUI();
+        });
+      });
+
+      updateVotingUI();
+    }
+
+    function updateVotingUI() {
+      const counts = {};
+      STATE.players.forEach(p => counts[p.id] = 0);
+
+      document.querySelectorAll('.voter-pill-btn').forEach(btn => {
+        const voterId = btn.getAttribute('data-voter-id');
+        const targetId = btn.getAttribute('data-target-id');
+        const isSelected = STATE.roundVotes[voterId] === targetId;
+
+        if (isSelected) {
+          counts[targetId] = (counts[targetId] || 0) + 1;
+          btn.classList.add('bg-amber-500', 'text-slate-950', 'border-amber-400', 'font-black');
+          btn.classList.remove('bg-slate-800', 'text-slate-300', 'border-slate-700');
+        } else if (voterId !== targetId) {
+          btn.classList.remove('bg-amber-500', 'text-slate-950', 'border-amber-400', 'font-black');
+          btn.classList.add('bg-slate-800', 'text-slate-300', 'border-slate-700');
+        }
+      });
+
+      STATE.players.forEach(p => {
+        const badge = document.getElementById(`vote-count-${p.id}`);
+        if (badge) {
+          const c = counts[p.id] || 0;
+          badge.textContent = `${c} ${c === 1 ? 'voto' : 'votos'}`;
+        }
+      });
+    }
+
+    document.getElementById('btn-next-round').addEventListener('click', () => {
+      sound.play('click');
+
+      // Sumar puntuación (100 puntos por voto)
+      Object.values(STATE.roundVotes).forEach(targetId => {
+        const player = STATE.players.find(p => p.id === targetId);
+        if (player) player.score += 100;
+      });
+
+      STATE.allRoundsHistory.push({
+        prompt: STATE.currentPrompt.name,
+        drawings: { ...STATE.roundDrawings },
+        votes: { ...STATE.roundVotes }
+      });
+
+      STATE.currentRoundIndex++;
+
+      if (STATE.currentRoundIndex < STATE.deck.length) {
+        startRound();
+      } else {
+        finishGame();
+      }
+    });
+
+    // --- 9. PODIO Y RESULTADOS ---
+    function finishGame() {
+      setScreen('results');
+      sound.play('victory');
+
+      const sorted = [...STATE.players].sort((a, b) => b.score - a.score);
+
+      // Render Podio
+      const podium = document.getElementById('podium-container');
+      podium.innerHTML = '';
+
+      const top1 = sorted[0];
+      const top2 = sorted[1] || null;
+      const top3 = sorted[2] || null;
+
+      if (top2) podium.appendChild(createPillar(top2, 2, 'h-32 bg-slate-800 border-slate-600 text-slate-300', '🥈'));
+      if (top1) podium.appendChild(createPillar(top1, 1, 'h-44 bg-gradient-to-t from-amber-600 to-amber-400 border-amber-300 text-slate-950', '👑'));
+      if (top3) podium.appendChild(createPillar(top3, 3, 'h-24 bg-amber-950/60 border-amber-900 text-amber-300', '🥉'));
+
+      // Tabla
+      const scoreboard = document.getElementById('scoreboard-list');
+      scoreboard.innerHTML = '';
+      sorted.forEach((p, idx) => {
+        const row = document.createElement('div');
+        row.className = 'py-3 flex items-center justify-between';
+        row.innerHTML = `
+          <div class="flex items-center gap-3">
+            <span class="w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${
+              idx === 0 ? 'bg-amber-400 text-slate-950 font-black' : 'bg-slate-800 text-slate-300'
+            }">
+              #${idx + 1}
+            </span>
+            <span class="font-bold text-sm text-white">${p.name}</span>
+          </div>
+          <div class="font-mono font-extrabold text-sm text-sky-400">
+            ${p.score} pts
+          </div>
+        `;
+        scoreboard.appendChild(row);
+      });
+
+      // Galería Museo
+      const museum = document.getElementById('summary-museum');
+      museum.innerHTML = '';
+      STATE.allRoundsHistory.forEach(r => {
+        Object.entries(r.drawings).forEach(([pId, dataUrl]) => {
+          const author = STATE.players.find(p => p.id === pId)?.name || 'Anónimo';
+          const item = document.createElement('div');
+          item.className = 'bg-slate-950 border border-slate-800 rounded-xl p-2 flex flex-col gap-1.5 shadow';
+          item.innerHTML = `
+            <div class="bg-white rounded-lg overflow-hidden aspect-square flex items-center justify-center">
+              <img src="${dataUrl}" class="w-full h-full object-contain" alt="Dibujo" />
+            </div>
+            <div class="text-[10px] leading-tight">
+              <strong class="text-amber-400 block truncate">${r.prompt}</strong>
+              <span class="text-slate-400 truncate block">por ${author}</span>
+            </div>
+          `;
+          museum.appendChild(item);
+        });
+      });
+    }
+
+    function createPillar(player, place, heightAndColor, emoji) {
+      const col = document.createElement('div');
+      col.className = 'flex flex-col items-center flex-1 max-w-[130px]';
+      col.innerHTML = `
+        <div class="mb-2 text-center">
+          <span class="text-2xl">${emoji}</span>
+          <h5 class="font-black text-xs sm:text-sm text-white truncate max-w-[110px]">${player.name}</h5>
+          <span class="text-xs font-mono font-bold text-sky-400">${player.score} pts</span>
+        </div>
+        <div class="w-full ${heightAndColor} border-t-4 rounded-t-2xl flex items-center justify-center shadow-lg font-black text-3xl">
+          ${place}
+        </div>
+      `;
+      return col;
+    }
+
+    // Revancha y Resets
+    document.getElementById('btn-play-again-same').addEventListener('click', () => {
+      sound.play('click');
+      const pool = [];
+      STATE.players.forEach(p => {
+        p.items.forEach(item => {
+          if (item.trim()) pool.push({ name: item.trim(), proposedBy: p.name });
+        });
+      });
+      for (let i = pool.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [pool[i], pool[j]] = [pool[j], pool[i]];
+      }
+      STATE.players.forEach(p => p.score = 0);
+      STATE.deck = pool;
+      STATE.currentRoundIndex = 0;
+      STATE.allRoundsHistory = [];
+      startRound();
+    });
+
+    document.getElementById('btn-new-lobby').addEventListener('click', () => {
+      sound.play('click');
+      setScreen('lobby');
+      renderLobbyPlayers();
+    });
+
+    document.getElementById('btn-reset-game').addEventListener('click', () => {
+      sound.play('click');
+      clearInterval(STATE.timerInterval);
+      STATE.isTurnActive = false;
+      setScreen('lobby');
+      renderLobbyPlayers();
+    });
+
+    const soundBtn = document.getElementById('btn-toggle-sound');
+    soundBtn.addEventListener('click', () => {
+      sound.enabled = !sound.enabled;
+      soundBtn.innerHTML = sound.enabled 
+        ? '<i class="fa-solid fa-volume-high text-sm"></i>' 
+        : '<i class="fa-solid fa-volume-xmark text-sm text-rose-400"></i>';
+      if (sound.enabled) sound.play('click');
+    });
+
+    // Iniciar app
+    window.addEventListener('DOMContentLoaded', () => {
+      renderLobbyPlayers();
+      initCanvas();
+    });
+  </script>
+</body>
+</html>
